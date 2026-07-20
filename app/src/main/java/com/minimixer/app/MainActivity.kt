@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Outline
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -109,7 +110,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Mix.load(this)
         setContentView(R.layout.activity_main)
+        applyAccent()
         audio = getSystemService(AUDIO_SERVICE) as AudioManager
         led = findViewById(R.id.ledMeter)
         multi = MultiAudio(this)
@@ -131,6 +134,11 @@ class MainActivity : AppCompatActivity() {
             toast("Reconnexion aux apps…")
         }
         findViewById<TextView>(R.id.btnDual).setOnClickListener { onDualClicked() }
+        findViewById<TextView>(R.id.btnTheme).setOnClickListener {
+            val t = Mix.next(this)
+            toast("Thème : ${t.name} 🎨")
+            recreate()
+        }
     }
 
     override fun onResume() {
@@ -161,11 +169,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // Restaure le comportement audio normal quand on ferme l'app
-        if (multi.active) multi.disableAsync()
+        // Restaure le comportement audio normal quand on ferme vraiment l'app
+        if (isFinishing && multi.active) multi.disableAsync()
         runCatching { Shizuku.removeRequestPermissionResultListener(permListener) }
         listOf(eq, bass, virt, reverb, loud).forEach { runCatching { it?.release() } }
         super.onDestroy()
+    }
+
+    // ---------- Thème ----------
+    private fun pill(filled: Boolean): GradientDrawable = GradientDrawable().apply {
+        cornerRadius = dp(10).toFloat()
+        if (filled) setColor(Mix.accent)
+        else {
+            setColor(Color.TRANSPARENT)
+            setStroke(dp(2), Mix.accent)
+        }
+    }
+
+    private fun applyAccent() {
+        findViewById<TextView>(R.id.titleText).setTextColor(Mix.accent)
+        findViewById<TextView>(R.id.btnRefresh).setTextColor(Mix.accent)
+        findViewById<TextView>(R.id.btnTheme).setTextColor(Mix.accent)
     }
 
     // ---------- Mode multi-sources (DUAL) ----------
@@ -208,11 +232,11 @@ class MainActivity : AppCompatActivity() {
     private fun updateDualUi() {
         val b = findViewById<TextView>(R.id.btnDual)
         if (multi.active) {
-            b.setBackgroundResource(R.drawable.dual_on)
+            b.background = pill(true)
             b.setTextColor(Color.parseColor("#0B0B0D"))
         } else {
-            b.setBackgroundResource(R.drawable.dual_off)
-            b.setTextColor(Color.parseColor("#9FE870"))
+            b.background = pill(false)
+            b.setTextColor(Mix.accent)
         }
     }
 
@@ -438,7 +462,7 @@ class MainActivity : AppCompatActivity() {
 
         val chText = TextView(this).apply {
             text = ch
-            setTextColor(Color.parseColor("#9FE870"))
+            setTextColor(Mix.accent)
             textSize = 11f
             gravity = Gravity.CENTER
             letterSpacing = 0.15f
@@ -457,14 +481,14 @@ class MainActivity : AppCompatActivity() {
             fun tbtn(txt: String, size: Float): TextView = TextView(this).apply {
                 text = txt
                 textSize = size
-                setTextColor(Color.parseColor("#9FE870"))
+                setTextColor(Mix.accent)
                 setPadding(dp(6), dp(2), dp(6), dp(2))
             }
             val prev = tbtn("⏮", 15f)
             val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
             val play = tbtn(if (playing) "⏸" else "▶", 19f)
             val next = tbtn("⏭", 15f)
-            chText.setTextColor(Color.parseColor(if (playing) "#9FE870" else "#6E6E78"))
+            chText.setTextColor(if (playing) Mix.accent else Color.parseColor("#6E6E78"))
 
             prev.setOnClickListener { runCatching { controller.transportControls.skipToPrevious() } }
             next.setOnClickListener { runCatching { controller.transportControls.skipToNext() } }
@@ -482,7 +506,7 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         val isPlaying = state?.state == PlaybackState.STATE_PLAYING
                         play.text = if (isPlaying) "⏸" else "▶"
-                        chText.setTextColor(Color.parseColor(if (isPlaying) "#9FE870" else "#6E6E78"))
+                        chText.setTextColor(if (isPlaying) Mix.accent else Color.parseColor("#6E6E78"))
                     }
                 }
             }
@@ -631,8 +655,9 @@ class MainActivity : AppCompatActivity() {
                 text = "P$i"
                 textSize = 13f
                 letterSpacing = 0.1f
-                setTextColor(Color.parseColor(if (exists) "#9FE870" else "#6E6E78"))
-                setBackgroundResource(if (exists) R.drawable.dual_off else R.drawable.preset_empty)
+                setTextColor(if (exists) Mix.accent else Color.parseColor("#6E6E78"))
+                background = if (exists) pill(false)
+                else ContextCompat.getDrawable(this@MainActivity, R.drawable.preset_empty)
                 setPadding(dp(18), dp(6), dp(18), dp(6))
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -654,8 +679,8 @@ class MainActivity : AppCompatActivity() {
             }
             btn.setOnLongClickListener {
                 prefs.edit().putString(key, currentPreset()).apply()
-                btn.setTextColor(Color.parseColor("#9FE870"))
-                btn.setBackgroundResource(R.drawable.dual_off)
+                btn.setTextColor(Mix.accent)
+                btn.background = pill(false)
                 btn.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                 toast("Preset P$i enregistré 💾")
                 true

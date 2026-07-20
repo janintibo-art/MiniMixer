@@ -39,7 +39,7 @@ class LedMeterView @JvmOverloads constructor(
                 val base = when {
                     fromBottom >= rows - 2 -> Color.parseColor("#FF4B4B")
                     fromBottom >= rows - 4 -> Color.parseColor("#FFC24B")
-                    else -> Color.parseColor("#9FE870")
+                    else -> Mix.accent
                 }
                 val x = col * cw
                 val y = row * ch

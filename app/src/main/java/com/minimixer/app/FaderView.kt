@@ -204,7 +204,7 @@ class FaderView(
         paint.strokeWidth = 3f
         val muted = value == 0
         paint.color = if (muted) Color.parseColor("#FF5A5A") else Color.parseColor("#F4F4F8")
-        paint.setShadowLayer(7f, 0f, 0f, if (muted) Color.parseColor("#FF4B4B") else Color.parseColor("#9FE870"))
+        paint.setShadowLayer(7f, 0f, 0f, if (muted) Color.parseColor("#FF4B4B") else Mix.accent)
         if (vertical) c.drawLine(cap.left + 4f, pos, cap.right - 4f, pos, paint)
         else c.drawLine(pos, cap.top + 4f, pos, cap.bottom - 4f, paint)
         paint.clearShadowLayer()

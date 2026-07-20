@@ -121,8 +121,8 @@ class KnobView @JvmOverloads constructor(
         paint.strokeWidth = r * 0.09f
         paint.color = Color.parseColor("#2A2A31")
         c.drawArc(arcRect, 135f, 270f, false, paint)
-        paint.color = Color.parseColor("#9FE870")
-        paint.setShadowLayer(r * 0.20f, 0f, 0f, Color.parseColor("#9FE870"))
+        paint.color = Mix.accent
+        paint.setShadowLayer(r * 0.20f, 0f, 0f, Mix.accent)
         c.drawArc(arcRect, 135f, 270f * value / m, false, paint)
         paint.clearShadowLayer()
 
@@ -190,8 +190,8 @@ class KnobView @JvmOverloads constructor(
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = r * 0.12f
         paint.strokeCap = Paint.Cap.ROUND
-        paint.color = Color.parseColor("#9FE870")
-        paint.setShadowLayer(r * 0.22f, 0f, 0f, Color.parseColor("#9FE870"))
+        paint.color = Mix.accent
+        paint.setShadowLayer(r * 0.22f, 0f, 0f, Mix.accent)
         c.drawLine(cx + r * 0.20f * cs, cy + r * 0.20f * sn, cx + r * 0.72f * cs, cy + r * 0.72f * sn, paint)
         paint.clearShadowLayer()
     }
