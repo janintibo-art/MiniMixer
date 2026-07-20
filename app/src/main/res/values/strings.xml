@@ -6,4 +6,5 @@
     <string name="apps_none">Aucune app ne joue de son en ce moment. Lance une musique puis reviens ici.</string>
     <string name="apps_grant_short">Tranches = canaux système. Appuie sur ⚙ en bas pour brancher les apps qui jouent du son.</string>
     <string name="apps_none_short">Aucune app ne joue de son : tranches = canaux système. Lance une musique puis reviens.</string>
+    <string name="shizuku_help">Pour écouter plusieurs apps en même temps (ex. YouTube + Spotify), Mini Mixer a besoin de Shizuku, une app gratuite qui lui donne le droit d\'ajuster le focus audio.\n\n1. Installe Shizuku (bouton ci-dessous)\n2. Dans Shizuku : « Démarrer via le débogage sans fil » (à refaire après chaque redémarrage du téléphone)\n3. Reviens ici et appuie sur DUAL\n\nLe mode s\'active uniquement quand Mini Mixer est ouvert et tout redevient normal quand tu fermes l\'app. Astuce : mets YouTube en mini-fenêtre (picture-in-picture) pour qu\'il continue en fond.</string>
 </resources>
