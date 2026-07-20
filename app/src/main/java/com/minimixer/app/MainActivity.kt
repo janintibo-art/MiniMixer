@@ -1,5 +1,6 @@
 package com.minimixer.app
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -31,6 +32,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity() {
@@ -48,6 +51,8 @@ class MainActivity : AppCompatActivity() {
 
     private var appCount = 0
     private var retries = 0
+    private val levelReader = AudioLevelReader()
+    private var visOk = false
     private val eqKnobs = mutableListOf<KnobView>()
     private var boostKnob: KnobView? = null
     private var threeDKnob: KnobView? = null
@@ -64,14 +69,41 @@ class MainActivity : AppCompatActivity() {
 
     private val meterTick = object : Runnable {
         override fun run() {
-            val maxV = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-            val base = audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxV
-            val playing = audio.isMusicActive || appCount > 0
-            led.level = if (playing)
-                (base * (0.45f + 0.55f * Math.random().toFloat())).coerceAtLeast(0.12f)
-            else
-                led.level * 0.7f
-            handler.postDelayed(this, 100)
+            val target = if (visOk) {
+                levelReader.level
+            } else {
+                val maxV = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                val base = audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxV
+                if (audio.isMusicActive || appCount > 0)
+                    base * (0.45f + 0.55f * Math.random().toFloat())
+                else 0f
+            }
+            // Lissage : montée rapide, retombée douce, comme un vrai vumètre
+            val k = if (target > led.level) 0.55f else 0.28f
+            led.level = led.level + (target - led.level) * k
+            handler.postDelayed(this, 60)
+        }
+    }
+
+    private fun ensureVisualizer() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            visOk = levelReader.start()
+        } else {
+            val prefs = getSharedPreferences("perm", MODE_PRIVATE)
+            if (!prefs.getBoolean("asked_mic", false)) {
+                prefs.edit().putBoolean("asked_mic", true).apply()
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 7)
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 7 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            visOk = levelReader.start()
+            toast("Vumètre branché sur le vrai signal 📊")
         }
     }
 
@@ -114,6 +146,7 @@ class MainActivity : AppCompatActivity() {
         setupChannels()
         registerSessionListener()
         syncMaster()
+        ensureVisualizer()
         handler.post(meterTick)
     }
 
@@ -122,6 +155,8 @@ class MainActivity : AppCompatActivity() {
         clearCtrlCallbacks()
         MediaNotifListener.onConnected = null
         handler.removeCallbacks(meterTick)
+        levelReader.stop()
+        visOk = false
         unregisterSessionListener()
     }
 
@@ -429,6 +464,7 @@ class MainActivity : AppCompatActivity() {
             val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
             val play = tbtn(if (playing) "⏸" else "▶", 19f)
             val next = tbtn("⏭", 15f)
+            chText.setTextColor(Color.parseColor(if (playing) "#9FE870" else "#6E6E78"))
 
             prev.setOnClickListener { runCatching { controller.transportControls.skipToPrevious() } }
             next.setOnClickListener { runCatching { controller.transportControls.skipToNext() } }
@@ -444,7 +480,9 @@ class MainActivity : AppCompatActivity() {
             val cbState = object : MediaController.Callback() {
                 override fun onPlaybackStateChanged(state: PlaybackState?) {
                     runOnUiThread {
-                        play.text = if (state?.state == PlaybackState.STATE_PLAYING) "⏸" else "▶"
+                        val isPlaying = state?.state == PlaybackState.STATE_PLAYING
+                        play.text = if (isPlaying) "⏸" else "▶"
+                        chText.setTextColor(Color.parseColor(if (isPlaying) "#9FE870" else "#6E6E78"))
                     }
                 }
             }
