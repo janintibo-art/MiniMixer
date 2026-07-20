@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private var reverb: PresetReverb? = null
 
     private var appCount = 0
+    private var retries = 0
     private var sessionPkgs: Set<String> = emptySet()
     private var sessionListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
 
@@ -78,14 +79,23 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
         findViewById<TextView>(R.id.btnRefresh).setOnClickListener {
-            rebindListener()
+            retries = 0
+            forceRebind()
             setupChannels()
+            toast("Reconnexion aux apps…")
         }
         findViewById<TextView>(R.id.btnDual).setOnClickListener { onDualClicked() }
     }
 
     override fun onResume() {
         super.onResume()
+        retries = 0
+        MediaNotifListener.onConnected = {
+            runOnUiThread {
+                retries = 0
+                setupChannels()
+            }
+        }
         rebindListener()
         setupChannels()
         registerSessionListener()
@@ -95,6 +105,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        MediaNotifListener.onConnected = null
         handler.removeCallbacks(meterTick)
         unregisterSessionListener()
     }
@@ -178,6 +189,25 @@ class MainActivity : AppCompatActivity() {
                 ComponentName(this, MediaNotifListener::class.java)
             )
         }
+    }
+
+    /** Re-branchement musclé : bascule le composant off/on puis rebind. */
+    private fun forceRebind() {
+        if (!listenerEnabled()) return
+        val comp = ComponentName(this, MediaNotifListener::class.java)
+        runCatching {
+            packageManager.setComponentEnabledSetting(
+                comp,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+            packageManager.setComponentEnabledSetting(
+                comp,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        }
+        runCatching { NotificationListenerService.requestRebind(comp) }
     }
 
     private fun registerSessionListener() {
@@ -352,6 +382,7 @@ class MainActivity : AppCompatActivity() {
         val strips = mutableListOf<Strip>()
         val listenerOn = listenerEnabled()
         val pkgs = mutableSetOf<String>()
+        var sessionError = false
 
         if (listenerOn) {
             try {
@@ -364,7 +395,8 @@ class MainActivity : AppCompatActivity() {
                         runCatching { c.setVolumeTo(v, 0) }
                     })
                 }
-            } catch (_: SecurityException) {
+            } catch (_: Exception) {
+                sessionError = true
             }
         }
         appCount = strips.size
@@ -397,6 +429,12 @@ class MainActivity : AppCompatActivity() {
 
         strips.take(4).forEachIndexed { i, s ->
             addStrip(row, "CH${i + 1}", s.label, s.max, s.cur, s.cb)
+        }
+
+        // Le service met parfois 1 à 3 s à se rebrancher : on réessaie tout seul
+        if (listenerOn && (sessionError || (appCount == 0 && audio.isMusicActive)) && retries < 5) {
+            retries++
+            handler.postDelayed({ setupChannels() }, 600L * retries)
         }
     }
 
