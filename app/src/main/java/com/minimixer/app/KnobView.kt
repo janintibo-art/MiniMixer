@@ -9,13 +9,17 @@ import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.util.AttributeSet
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-/** Potentiomètre rotatif à rendu détaillé : bezel chromé, métal, reflet, glow. */
+/**
+ * Potentiomètre rotatif : bezel chromé, métal, reflet, glow.
+ * Haptique crantée pendant la rotation, double-tap = retour à la valeur par défaut.
+ */
 class KnobView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
@@ -26,21 +30,36 @@ class KnobView @JvmOverloads constructor(
             field = v.coerceIn(0, max)
             invalidate()
         }
+    var defaultValue = 0
     var onChange: ((Int) -> Unit)? = null
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var lastY = 0f
     private var acc = 0f
+    private var lastTapTime = 0L
+    private var lastBucket = -1
 
     init {
         setLayerType(LAYER_TYPE_SOFTWARE, null)
+        isHapticFeedbackEnabled = true
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.action) {
             MotionEvent.ACTION_DOWN -> {
-                lastY = e.y
                 parent?.requestDisallowInterceptTouchEvent(true)
+                val now = System.currentTimeMillis()
+                if (now - lastTapTime < 280) {
+                    // Double-tap : retour à la valeur par défaut
+                    value = defaultValue
+                    onChange?.invoke(value)
+                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    lastTapTime = 0
+                } else {
+                    lastTapTime = now
+                }
+                lastY = e.y
+                acc = 0f
             }
             MotionEvent.ACTION_MOVE -> {
                 acc += (lastY - e.y) / height.coerceAtLeast(1) * max * 1.6f
@@ -48,12 +67,34 @@ class KnobView @JvmOverloads constructor(
                 val d = acc.toInt()
                 if (d != 0) {
                     acc -= d
+                    val before = value
                     value += d
-                    onChange?.invoke(value)
+                    if (value != before) {
+                        onChange?.invoke(value)
+                        tickHaptics()
+                    }
                 }
             }
         }
         return true
+    }
+
+    /** Vibration crantée : petit tick tous les 5 %, plus marqué au centre et en butée. */
+    private fun tickHaptics() {
+        val m = max.coerceAtLeast(1)
+        when {
+            value == 0 || value == m ->
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            value == defaultValue && defaultValue > 0 ->
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            else -> {
+                val bucket = value * 20 / m
+                if (bucket != lastBucket) {
+                    lastBucket = bucket
+                    performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                }
+            }
+        }
     }
 
     override fun onDraw(c: Canvas) {

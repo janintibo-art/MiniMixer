@@ -230,7 +230,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------- Potentiomètres ----------
-    private fun addKnob(parent: LinearLayout, label: String, sizeDp: Int, max: Int, initial: Int, onChange: (Int) -> Unit) {
+    private fun addKnob(parent: LinearLayout, label: String, sizeDp: Int, max: Int, initial: Int, defaultVal: Int = 0, onChange: (Int) -> Unit) {
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -240,6 +240,7 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
             this.max = max.coerceAtLeast(1)
             value = initial
+            defaultValue = defaultVal
             this.onChange = onChange
         }
         val t = TextView(this).apply {
@@ -277,7 +278,7 @@ class MainActivity : AppCompatActivity() {
             for ((name, idxs) in groups) {
                 val cur = runCatching { e.getBandLevel(idxs.first().toShort()).toInt() - minL }
                     .getOrDefault((maxL - minL) / 2)
-                addKnob(big, name, 78, maxL - minL, cur) { v ->
+                addKnob(big, name, 78, maxL - minL, cur, (maxL - minL) / 2) { v ->
                     val level = (minL + v).toShort()
                     idxs.forEach { i -> runCatching { e.setBandLevel(i.toShort(), level) } }
                 }
