@@ -10,6 +10,7 @@ class MultiAudio(private val ctx: Context) {
 
     private val prefs = ctx.getSharedPreferences("multi_audio", Context.MODE_PRIVATE)
     private val touched = mutableSetOf<String>()
+    private val mutedPkgs = mutableSetOf<String>()
 
     var active = false
         private set
@@ -28,11 +29,31 @@ class MultiAudio(private val ctx: Context) {
     /** Filet de sécurité : si l'app avait été tuée sans restaurer, on remet tout. */
     fun restoreLeftover() {
         val leftover = prefs.getStringSet("touched", emptySet()) ?: emptySet()
-        if (leftover.isEmpty()) return
+        val leftoverMuted = prefs.getStringSet("muted", emptySet()) ?: emptySet()
+        if (leftover.isEmpty() && leftoverMuted.isEmpty()) return
         Thread {
             leftover.forEach { ShizukuShell.exec("cmd appops set $it TAKE_AUDIO_FOCUS allow") }
+            leftoverMuted.forEach { ShizukuShell.exec("cmd appops set $it PLAY_AUDIO allow") }
         }.start()
-        prefs.edit().remove("touched").apply()
+        prefs.edit().remove("touched").remove("muted").apply()
+    }
+
+    /** Mute/unmute réel d'une app (à appeler hors du thread UI). */
+    fun setPlayMuted(pkg: String, muted: Boolean): Boolean {
+        val mode = if (muted) "ignore" else "allow"
+        val ok = ShizukuShell.exec("cmd appops set $pkg PLAY_AUDIO $mode")
+        if (ok) {
+            if (muted) mutedPkgs.add(pkg) else mutedPkgs.remove(pkg)
+            prefs.edit().putStringSet("muted", HashSet(mutedPkgs)).apply()
+        }
+        return ok
+    }
+
+    /** À appeler hors du thread UI. */
+    fun unmuteAll() {
+        mutedPkgs.forEach { ShizukuShell.exec("cmd appops set $it PLAY_AUDIO allow") }
+        mutedPkgs.clear()
+        prefs.edit().remove("muted").apply()
     }
 
     /** À appeler hors du thread UI. */
@@ -56,6 +77,7 @@ class MultiAudio(private val ctx: Context) {
     fun disable() {
         touched.forEach { ShizukuShell.exec("cmd appops set $it TAKE_AUDIO_FOCUS allow") }
         touched.clear()
+        unmuteAll()
         active = false
         prefs.edit().remove("touched").apply()
     }

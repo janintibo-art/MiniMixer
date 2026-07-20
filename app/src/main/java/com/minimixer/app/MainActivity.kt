@@ -61,6 +61,8 @@ class MainActivity : AppCompatActivity() {
     private var reverbKnob: KnobView? = null
     private var loudKnob: KnobView? = null
     private var sleepKnob: KnobView? = null
+    private var lastXfade = 50
+    private val xMuted = mutableMapOf<String, Boolean>()
     private var sessionPkgs: Set<String> = emptySet()
     private var sessionListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
 
@@ -227,7 +229,9 @@ class MainActivity : AppCompatActivity() {
             Thread {
                 multi.disable()
                 runOnUiThread {
+                    xMuted.clear()
                     updateDualUi()
+                    setupChannels()
                     toast("Multi-sources désactivé, focus audio normal")
                 }
             }.start()
@@ -250,8 +254,9 @@ class MainActivity : AppCompatActivity() {
             val ok = multi.enable(pkgs)
             runOnUiThread {
                 updateDualUi()
+                setupChannels()
                 toast(
-                    if (ok) "Multi-sources ACTIVÉ 🎧 (YouTube + Spotify possibles)"
+                    if (ok) "Multi-sources ACTIVÉ 🎧 — crossfader dispo avec 2 apps"
                     else "Échec : vérifie que Shizuku est démarré"
                 )
             }
@@ -695,6 +700,8 @@ class MainActivity : AppCompatActivity() {
             addStrip(row, "CH${i + 1}", s.label, s.max, s.cur, s.controller, s.cb)
         }
 
+        setupCrossfade(strips.mapNotNull { it.controller })
+
         // Le service met parfois 1 à 3 s à se rebrancher : on réessaie tout seul
         if (listenerOn && (sessionError || (appCount == 0 && audio.isMusicActive)) && retries < 5) {
             retries++
@@ -774,6 +781,71 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             rowP.addView(btn)
+        }
+    }
+
+    // ---------- Crossfader DJ ----------
+    private fun setupCrossfade(controllers: List<MediaController>) {
+        val holder = findViewById<android.widget.FrameLayout>(R.id.xfadeHolder)
+        val label = findViewById<TextView>(R.id.xfadeLabel)
+
+        if (!multi.active || controllers.size < 2) {
+            holder.removeAllViews()
+            holder.visibility = View.GONE
+            label.visibility = View.GONE
+            if (xMuted.values.any { it }) {
+                xMuted.clear()
+                Thread { multi.unmuteAll() }.start()
+            }
+            return
+        }
+
+        val a = controllers[0]
+        val b = controllers[1]
+        label.visibility = View.VISIBLE
+        holder.visibility = View.VISIBLE
+        label.setTextColor(Mix.accent)
+        label.text = "◀ ${appLabel(a.packageName)}   CROSSFADER   ${appLabel(b.packageName)} ▶"
+
+        holder.removeAllViews()
+        val fader = FaderView(this, horizontal = true).apply {
+            max = 100
+            value = lastXfade
+            onChange = { v ->
+                lastXfade = v
+                applyXfade(a, b, v / 100f)
+            }
+        }
+        holder.addView(
+            fader,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        applyXfade(a, b, lastXfade / 100f)
+    }
+
+    private fun applyXfade(a: MediaController, b: MediaController, t: Float) {
+        val levelA = (2f * (1f - t)).coerceAtMost(1f)
+        val levelB = (2f * t).coerceAtMost(1f)
+        applyXfadeSide(a, levelA)
+        applyXfadeSide(b, levelB)
+    }
+
+    private fun applyXfadeSide(c: MediaController, level: Float) {
+        val info = c.playbackInfo
+        if (info?.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE) {
+            // Session distante (Cast, Bluetooth…) : fondu progressif réel
+            runCatching { c.setVolumeTo((info.maxVolume * level).toInt(), 0) }
+        } else {
+            // Session locale : mute réel de l'app via Shizuku aux extrémités
+            val shouldMute = level < 0.30f
+            val pkg = c.packageName
+            if (xMuted[pkg] != shouldMute) {
+                xMuted[pkg] = shouldMute
+                Thread { multi.setPlayMuted(pkg, shouldMute) }.start()
+            }
         }
     }
 
