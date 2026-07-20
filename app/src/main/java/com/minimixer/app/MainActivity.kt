@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.drawable.GradientDrawable
@@ -124,7 +125,10 @@ class MainActivity : AppCompatActivity() {
         setupMaster()
         setupPresets()
         updateDualUi()
+        wireButtons()
+    }
 
+    private fun wireButtons() {
         findViewById<TextView>(R.id.btnApps).setOnClickListener {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
@@ -140,6 +144,29 @@ class MainActivity : AppCompatActivity() {
             toast("Thème : ${t.name} 🎨")
             recreate()
         }
+    }
+
+    /** Rotation : on reconstruit l'interface sans perdre les réglages. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        rebuildUi()
+    }
+
+    private fun rebuildUi() {
+        val snapshot = if (eqKnobs.isNotEmpty() || boostKnob != null) currentPreset() else null
+        val sleep = sleepKnob?.value ?: 0
+        setContentView(R.layout.activity_main)
+        applyAccent()
+        led = findViewById(R.id.ledMeter)
+        setupKnobs()
+        setupPresets()
+        setupMaster()
+        updateDualUi()
+        wireButtons()
+        snapshot?.let { applyPreset(it) }
+        sleepKnob?.value = sleep
+        setupChannels()
+        syncMaster()
     }
 
     override fun onResume() {
@@ -339,9 +366,8 @@ class MainActivity : AppCompatActivity() {
         small.removeAllViews()
         eqKnobs.clear()
 
-        try {
-            eq = Equalizer(0, 0).apply { enabled = true }
-        } catch (_: Exception) {
+        if (eq == null) {
+            eq = runCatching { Equalizer(0, 0).apply { enabled = true } }.getOrNull()
         }
         val e = eq
         if (e != null && e.numberOfBands > 0) {

@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/mixer_bg"
+    android:padding="12dp">
+
+    <!-- Colonne gauche : marque, DUAL, potards, presets -->
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="match_parent"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/titleText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="MINI MIXER"
+                        android:textColor="#9FE870"
+                        android:textSize="18sp"
+                        android:textStyle="bold|italic"
+                        android:letterSpacing="0.2" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="M-4 DIGITAL CONSOLE"
+                        android:textColor="#6E6E78"
+                        android:textSize="8sp"
+                        android:letterSpacing="0.3" />
+
+                    <TextView
+                        android:id="@+id/btnDual"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingTop="5dp"
+                        android:paddingBottom="5dp"
+                        android:text="DUAL 🎧"
+                        android:textColor="#9FE870"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15" />
+                </LinearLayout>
+
+                <com.minimixer.app.LedMeterView
+                    android:id="@+id/ledMeter"
+                    android:layout_width="32dp"
+                    android:layout_height="80dp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="8dp"
+                android:background="#2E2E34" />
+
+            <LinearLayout
+                android:id="@+id/knobRowBig"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp" />
+
+            <LinearLayout
+                android:id="@+id/knobRowSmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp" />
+
+            <LinearLayout
+                android:id="@+id/presetRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="10dp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Rail central -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:background="#2E2E34" />
+
+    <!-- Colonne droite : tranches, master, boutons -->
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_weight="1.2"
+        android:layout_height="match_parent"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/appHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#6E6E78"
+                android:textSize="10sp" />
+
+            <LinearLayout
+                android:id="@+id/channelRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="2dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="6dp"
+                android:text="MASTER"
+                android:textColor="#6E6E78"
+                android:textSize="9sp"
+                android:letterSpacing="0.3" />
+
+            <FrameLayout
+                android:id="@+id/masterHolder"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="4dp">
+
+                <TextView
+                    android:id="@+id/btnRefresh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="6dp"
+                    android:layout_marginEnd="12dp"
+                    android:text="⟳  Rafraîchir"
+                    android:textColor="#9FE870"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/btnApps"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="6dp"
+                    android:layout_marginEnd="12dp"
+                    android:text="⚙  Apps"
+                    android:textColor="#8A8A93"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/btnTheme"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="6dp"
+                    android:text="🎨  Thème"
+                    android:textColor="#9FE870"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
