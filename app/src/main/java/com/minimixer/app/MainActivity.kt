@@ -4,7 +4,11 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Outline
 import android.media.AudioManager
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.PlaybackState
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
@@ -18,6 +22,9 @@ import android.os.Looper
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.view.Gravity
+import android.view.View
+import android.view.ViewOutlineProvider
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -105,6 +112,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        clearCtrlCallbacks()
         MediaNotifListener.onConnected = null
         handler.removeCallbacks(meterTick)
         unregisterSessionListener()
@@ -334,12 +342,56 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------- Tranches ----------
-    private fun addStrip(parent: LinearLayout, ch: String, label: String, max: Int, current: Int, onChange: (Int) -> Unit) {
+    private val ctrlCallbacks = mutableListOf<Pair<MediaController, MediaController.Callback>>()
+
+    private fun clearCtrlCallbacks() {
+        ctrlCallbacks.forEach { (c, cb) -> runCatching { c.unregisterCallback(cb) } }
+        ctrlCallbacks.clear()
+    }
+
+    private fun applyArt(iv: ImageView, md: MediaMetadata?) {
+        val bmp = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        if (bmp != null) {
+            iv.setImageBitmap(bmp)
+            iv.scaleType = ImageView.ScaleType.CENTER_CROP
+        } else {
+            iv.setImageResource(R.drawable.art_placeholder)
+            iv.scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+    }
+
+    private fun addStrip(parent: LinearLayout, ch: String, label: String, maxV: Int, current: Int, controller: MediaController?, cb: (Int) -> Unit) {
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
+
+        // Pochette d'album
+        if (controller != null) {
+            val art = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { bottomMargin = dp(4) }
+                outlineProvider = object : ViewOutlineProvider() {
+                    override fun getOutline(v: View, o: Outline) {
+                        o.setRoundRect(0, 0, v.width, v.height, dp(8).toFloat())
+                    }
+                }
+                clipToOutline = true
+                setBackgroundColor(Color.parseColor("#1A1A1F"))
+            }
+            applyArt(art, controller.metadata)
+            col.addView(art)
+
+            val cbArt = object : MediaController.Callback() {
+                override fun onMetadataChanged(metadata: MediaMetadata?) {
+                    runOnUiThread { applyArt(art, metadata) }
+                }
+            }
+            runCatching { controller.registerCallback(cbArt) }
+            ctrlCallbacks.add(controller to cbArt)
+        }
+
         val chText = TextView(this).apply {
             text = ch
             setTextColor(Color.parseColor("#9FE870"))
@@ -348,11 +400,58 @@ class MainActivity : AppCompatActivity() {
             letterSpacing = 0.15f
         }
         val slider = FaderView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(60), dp(210))
-            this.max = max
+            layoutParams = LinearLayout.LayoutParams(dp(60), dp(190))
+            this.max = maxV
             value = current
-            this.onChange = onChange
+            this.onChange = cb
         }
+        col.addView(chText)
+        col.addView(slider)
+
+        // Transport : ⏮ ▶/⏸ ⏭
+        if (controller != null) {
+            fun tbtn(txt: String, size: Float): TextView = TextView(this).apply {
+                text = txt
+                textSize = size
+                setTextColor(Color.parseColor("#9FE870"))
+                setPadding(dp(6), dp(2), dp(6), dp(2))
+            }
+            val prev = tbtn("⏮", 15f)
+            val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
+            val play = tbtn(if (playing) "⏸" else "▶", 19f)
+            val next = tbtn("⏭", 15f)
+
+            prev.setOnClickListener { runCatching { controller.transportControls.skipToPrevious() } }
+            next.setOnClickListener { runCatching { controller.transportControls.skipToNext() } }
+            play.setOnClickListener {
+                runCatching {
+                    if (controller.playbackState?.state == PlaybackState.STATE_PLAYING)
+                        controller.transportControls.pause()
+                    else
+                        controller.transportControls.play()
+                }
+            }
+
+            val cbState = object : MediaController.Callback() {
+                override fun onPlaybackStateChanged(state: PlaybackState?) {
+                    runOnUiThread {
+                        play.text = if (state?.state == PlaybackState.STATE_PLAYING) "⏸" else "▶"
+                    }
+                }
+            }
+            runCatching { controller.registerCallback(cbState) }
+            ctrlCallbacks.add(controller to cbState)
+
+            val transport = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            transport.addView(prev)
+            transport.addView(play)
+            transport.addView(next)
+            col.addView(transport)
+        }
+
         val name = TextView(this).apply {
             text = label
             setTextColor(Color.parseColor("#B9B9C2"))
@@ -360,8 +459,6 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             maxLines = 1
         }
-        col.addView(chText)
-        col.addView(slider)
         col.addView(name)
         parent.addView(col)
     }
@@ -377,8 +474,15 @@ class MainActivity : AppCompatActivity() {
         val row = findViewById<LinearLayout>(R.id.channelRow)
         val hint = findViewById<TextView>(R.id.appHint)
         row.removeAllViews()
+        clearCtrlCallbacks()
 
-        data class Strip(val label: String, val max: Int, val cur: Int, val cb: (Int) -> Unit)
+        data class Strip(
+            val label: String,
+            val max: Int,
+            val cur: Int,
+            val controller: MediaController? = null,
+            val cb: (Int) -> Unit
+        )
 
         val strips = mutableListOf<Strip>()
         val listenerOn = listenerEnabled()
@@ -392,7 +496,7 @@ class MainActivity : AppCompatActivity() {
                 for (c in controllers) {
                     pkgs.add(c.packageName)
                     val info = c.playbackInfo
-                    strips.add(Strip(appLabel(c.packageName), info?.maxVolume ?: 15, info?.currentVolume ?: 0) { v ->
+                    strips.add(Strip(appLabel(c.packageName), info?.maxVolume ?: 15, info?.currentVolume ?: 0, c) { v ->
                         runCatching { c.setVolumeTo(v, 0) }
                     })
                 }
@@ -429,7 +533,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         strips.take(4).forEachIndexed { i, s ->
-            addStrip(row, "CH${i + 1}", s.label, s.max, s.cur, s.cb)
+            addStrip(row, "CH${i + 1}", s.label, s.max, s.cur, s.controller, s.cb)
         }
 
         // Le service met parfois 1 à 3 s à se rebrancher : on réessaie tout seul
