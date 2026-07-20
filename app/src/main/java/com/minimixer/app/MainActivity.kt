@@ -22,6 +22,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.ImageView
@@ -47,6 +48,11 @@ class MainActivity : AppCompatActivity() {
 
     private var appCount = 0
     private var retries = 0
+    private val eqKnobs = mutableListOf<KnobView>()
+    private var boostKnob: KnobView? = null
+    private var threeDKnob: KnobView? = null
+    private var reverbKnob: KnobView? = null
+    private var loudKnob: KnobView? = null
     private var sessionPkgs: Set<String> = emptySet()
     private var sessionListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
 
@@ -80,6 +86,7 @@ class MainActivity : AppCompatActivity() {
 
         setupKnobs()
         setupMaster()
+        setupPresets()
         updateDualUi()
 
         findViewById<TextView>(R.id.btnApps).setOnClickListener {
@@ -238,7 +245,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------- Potentiomètres ----------
-    private fun addKnob(parent: LinearLayout, label: String, sizeDp: Int, max: Int, initial: Int, defaultVal: Int = 0, onChange: (Int) -> Unit) {
+    private fun addKnob(parent: LinearLayout, label: String, sizeDp: Int, max: Int, initial: Int, defaultVal: Int = 0, onChange: (Int) -> Unit): KnobView {
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -261,6 +268,7 @@ class MainActivity : AppCompatActivity() {
         col.addView(k)
         col.addView(t)
         parent.addView(col)
+        return k
     }
 
     private fun setupKnobs() {
@@ -268,6 +276,7 @@ class MainActivity : AppCompatActivity() {
         val small = findViewById<LinearLayout>(R.id.knobRowSmall)
         big.removeAllViews()
         small.removeAllViews()
+        eqKnobs.clear()
 
         try {
             eq = Equalizer(0, 0).apply { enabled = true }
@@ -286,10 +295,10 @@ class MainActivity : AppCompatActivity() {
             for ((name, idxs) in groups) {
                 val cur = runCatching { e.getBandLevel(idxs.first().toShort()).toInt() - minL }
                     .getOrDefault((maxL - minL) / 2)
-                addKnob(big, name, 78, maxL - minL, cur, (maxL - minL) / 2) { v ->
+                eqKnobs.add(addKnob(big, name, 78, maxL - minL, cur, (maxL - minL) / 2) { v ->
                     val level = (minL + v).toShort()
                     idxs.forEach { i -> runCatching { e.setBandLevel(i.toShort(), level) } }
-                }
+                })
             }
         } else {
             big.addView(TextView(this).apply {
@@ -299,7 +308,7 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        addKnob(small, "BOOST", 58, 1000, 0) { v ->
+        boostKnob = addKnob(small, "BOOST", 58, 1000, 0) { v ->
             if (v <= 0) {
                 runCatching { bass?.release() }; bass = null
             } else {
@@ -308,7 +317,7 @@ class MainActivity : AppCompatActivity() {
                 runCatching { bass?.setStrength(v.toShort()) }
             }
         }
-        addKnob(small, "3D", 58, 1000, 0) { v ->
+        threeDKnob = addKnob(small, "3D", 58, 1000, 0) { v ->
             if (v <= 0) {
                 runCatching { virt?.release() }; virt = null
             } else {
@@ -321,7 +330,7 @@ class MainActivity : AppCompatActivity() {
             PresetReverb.PRESET_NONE, PresetReverb.PRESET_SMALLROOM, PresetReverb.PRESET_LARGEROOM,
             PresetReverb.PRESET_MEDIUMHALL, PresetReverb.PRESET_LARGEHALL, PresetReverb.PRESET_PLATE
         )
-        addKnob(small, "REVERB", 58, presets.size - 1, 0) { v ->
+        reverbKnob = addKnob(small, "REVERB", 58, presets.size - 1, 0) { v ->
             if (v <= 0) {
                 runCatching { reverb?.release() }; reverb = null
             } else {
@@ -330,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                 runCatching { reverb?.preset = presets[v]; reverb?.enabled = true }
             }
         }
-        addKnob(small, "LOUD", 58, 1200, 0) { v ->
+        loudKnob = addKnob(small, "LOUD", 58, 1200, 0) { v ->
             if (v <= 0) {
                 runCatching { loud?.release() }; loud = null
             } else {
@@ -540,6 +549,80 @@ class MainActivity : AppCompatActivity() {
         if (listenerOn && (sessionError || (appCount == 0 && audio.isMusicActive)) && retries < 5) {
             retries++
             handler.postDelayed({ setupChannels() }, 600L * retries)
+        }
+    }
+
+    // ---------- Presets ----------
+    private fun fire(k: KnobView?, v: Int?) {
+        if (k == null || v == null) return
+        k.value = v
+        k.onChange?.invoke(k.value)
+    }
+
+    private fun currentPreset(): String {
+        val eq = eqKnobs.joinToString(",") { it.value.toString() }
+        return listOf(
+            eq,
+            (boostKnob?.value ?: 0).toString(),
+            (threeDKnob?.value ?: 0).toString(),
+            (reverbKnob?.value ?: 0).toString(),
+            (loudKnob?.value ?: 0).toString()
+        ).joinToString(";")
+    }
+
+    private fun applyPreset(data: String) {
+        val parts = data.split(";")
+        runCatching {
+            val eqVals = parts[0].split(",").mapNotNull { it.toIntOrNull() }
+            eqKnobs.forEachIndexed { i, k -> eqVals.getOrNull(i)?.let { fire(k, it) } }
+            fire(boostKnob, parts.getOrNull(1)?.toIntOrNull())
+            fire(threeDKnob, parts.getOrNull(2)?.toIntOrNull())
+            fire(reverbKnob, parts.getOrNull(3)?.toIntOrNull())
+            fire(loudKnob, parts.getOrNull(4)?.toIntOrNull())
+        }
+    }
+
+    private fun setupPresets() {
+        val rowP = findViewById<LinearLayout>(R.id.presetRow)
+        rowP.removeAllViews()
+        val prefs = getSharedPreferences("presets", MODE_PRIVATE)
+        for (i in 1..3) {
+            val key = "p$i"
+            val exists = prefs.contains(key)
+            val btn = TextView(this).apply {
+                text = "P$i"
+                textSize = 13f
+                letterSpacing = 0.1f
+                setTextColor(Color.parseColor(if (exists) "#9FE870" else "#6E6E78"))
+                setBackgroundResource(if (exists) R.drawable.dual_off else R.drawable.preset_empty)
+                setPadding(dp(18), dp(6), dp(18), dp(6))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginStart = dp(6)
+                    marginEnd = dp(6)
+                }
+            }
+            btn.setOnClickListener {
+                val data = prefs.getString(key, null)
+                if (data == null) {
+                    toast("Appui long sur P$i pour enregistrer tes réglages")
+                } else {
+                    applyPreset(data)
+                    btn.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    toast("Preset P$i chargé 🎚")
+                }
+            }
+            btn.setOnLongClickListener {
+                prefs.edit().putString(key, currentPreset()).apply()
+                btn.setTextColor(Color.parseColor("#9FE870"))
+                btn.setBackgroundResource(R.drawable.dual_off)
+                btn.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                toast("Preset P$i enregistré 💾")
+                true
+            }
+            rowP.addView(btn)
         }
     }
 
