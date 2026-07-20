@@ -4,11 +4,11 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
-import kotlin.math.min
 
-/** Vumètre 2 colonnes de LED (vert / orange / rouge). */
+/** Vumètre LED avec halo lumineux quand les segments s'allument. */
 class LedMeterView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
@@ -20,6 +20,10 @@ class LedMeterView @JvmOverloads constructor(
         }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    init {
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
 
     override fun onDraw(c: Canvas) {
         val cols = 2
@@ -37,9 +41,17 @@ class LedMeterView @JvmOverloads constructor(
                     fromBottom >= rows - 4 -> Color.parseColor("#FFC24B")
                     else -> Color.parseColor("#9FE870")
                 }
-                paint.color = if (on) base
-                else Color.argb(45, Color.red(base), Color.green(base), Color.blue(base))
-                c.drawCircle(col * cw + cw / 2f, row * ch + ch / 2f, min(cw, ch) * 0.32f, paint)
+                val x = col * cw
+                val y = row * ch
+                val rect = RectF(x + cw * 0.16f, y + ch * 0.22f, x + cw * 0.84f, y + ch * 0.78f)
+                if (on) {
+                    paint.color = base
+                    paint.setShadowLayer(6f, 0f, 0f, base)
+                } else {
+                    paint.color = Color.argb(42, Color.red(base), Color.green(base), Color.blue(base))
+                }
+                c.drawRoundRect(rect, 3f, 3f, paint)
+                paint.clearShadowLayer()
             }
         }
     }

@@ -19,12 +19,10 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.view.Gravity
 import android.widget.LinearLayout
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity() {
@@ -318,14 +316,11 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             letterSpacing = 0.15f
         }
-        val slider = VerticalSeekBar(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(56), dp(200))
-            this.max = max.coerceAtLeast(1)
-            progress = current.coerceIn(0, this.max)
-            progressDrawable = ContextCompat.getDrawable(this@MainActivity, R.drawable.fader_track)
-            thumb = ContextCompat.getDrawable(this@MainActivity, R.drawable.fader_thumb)
-            splitTrack = false
-            onUserChange = onChange
+        val slider = FaderView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(60), dp(210))
+            this.max = max
+            value = current
+            this.onChange = onChange
         }
         val name = TextView(this).apply {
             text = label
@@ -406,20 +401,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------- Master ----------
+    private var masterFader: FaderView? = null
+
     private fun setupMaster() {
-        val seek = findViewById<SeekBar>(R.id.masterSeek)
-        seek.max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) {
-                if (fromUser) runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0) }
-            }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
+        val holder = findViewById<android.widget.FrameLayout>(R.id.masterHolder)
+        holder.removeAllViews()
+        masterFader = FaderView(this, horizontal = true).apply {
+            max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            value = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+            onChange = { v -> runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0) } }
+        }
+        holder.addView(
+            masterFader,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
     }
 
     private fun syncMaster() {
-        findViewById<SeekBar>(R.id.masterSeek).progress = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+        masterFader?.value = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
