@@ -4,37 +4,49 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
-    android:gravity="center"
+    android:gravity="center_vertical"
     android:padding="10dp"
     android:background="@drawable/widget_bg">
 
-    <ImageView
-        android:layout_width="10dp"
-        android:layout_height="44dp"
-        android:layout_marginEnd="7dp"
-        android:src="@drawable/widget_fader1"
-        android:contentDescription="@string/app_name" />
-
-    <ImageView
-        android:layout_width="10dp"
-        android:layout_height="44dp"
-        android:layout_marginEnd="7dp"
-        android:src="@drawable/widget_fader2"
-        android:contentDescription="@string/app_name" />
-
-    <ImageView
-        android:layout_width="10dp"
-        android:layout_height="44dp"
-        android:layout_marginEnd="10dp"
-        android:src="@drawable/widget_fader3"
-        android:contentDescription="@string/app_name" />
-
     <TextView
+        android:id="@+id/widgetLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="MIX"
         android:textColor="#9FE870"
         android:textStyle="bold"
         android:textSize="16sp"
-        android:letterSpacing="0.2" />
+        android:letterSpacing="0.2"
+        android:paddingEnd="10dp" />
+
+    <TextView
+        android:id="@+id/btnVolDown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="−"
+        android:textColor="#E8E8EC"
+        android:textStyle="bold"
+        android:textSize="22sp"
+        android:paddingStart="8dp"
+        android:paddingEnd="12dp" />
+
+    <ProgressBar
+        android:id="@+id/widgetVol"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="8dp"
+        android:progressTint="#9FE870"
+        android:progressBackgroundTint="#33333A" />
+
+    <TextView
+        android:id="@+id/btnVolUp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="+"
+        android:textColor="#E8E8EC"
+        android:textStyle="bold"
+        android:textSize="22sp"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp" />
 </LinearLayout>

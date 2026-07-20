@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
     private var threeDKnob: KnobView? = null
     private var reverbKnob: KnobView? = null
     private var loudKnob: KnobView? = null
+    private var sleepKnob: KnobView? = null
     private var sessionPkgs: Set<String> = emptySet()
     private var sessionListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
 
@@ -166,6 +167,7 @@ class MainActivity : AppCompatActivity() {
         levelReader.stop()
         visOk = false
         unregisterSessionListener()
+        MixerWidgetProvider.refreshAll(this)
     }
 
     override fun onDestroy() {
@@ -405,6 +407,66 @@ class MainActivity : AppCompatActivity() {
                 if (loud == null) loud = runCatching { LoudnessEnhancer(0).apply { enabled = true } }.getOrNull()
                 if (loud == null) toast("Loudness indisponible")
                 runCatching { loud?.setTargetGain(v) }
+            }
+        }
+        sleepKnob = addKnob(small, "SLEEP", 58, 120, 0) { v ->
+            handler.removeCallbacks(sleepTick)
+            handler.removeCallbacks(sleepAnnounce)
+            handler.postDelayed(sleepAnnounce, 500)
+            if (v > 0) handler.postDelayed(sleepTick, 60_000)
+        }
+    }
+
+    // ---------- Sleep timer ----------
+    private val sleepAnnounce = Runnable {
+        val v = sleepKnob?.value ?: 0
+        if (v > 0) toast("😴 Musique coupée dans $v min")
+        else toast("Sleep timer désactivé")
+    }
+
+    private val sleepTick = object : Runnable {
+        override fun run() {
+            val k = sleepKnob ?: return
+            if (k.value <= 0) return
+            if (k.value == 1) {
+                k.value = 0
+                startSleepFade()
+            } else {
+                k.value = k.value - 1
+                handler.postDelayed(this, 60_000)
+            }
+        }
+    }
+
+    private fun startSleepFade() {
+        val start = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+        var step = 0
+        val steps = 8
+        val fade = object : Runnable {
+            override fun run() {
+                step++
+                val v = (start * (steps - step) / steps).coerceAtLeast(0)
+                runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0) }
+                if (step < steps) {
+                    handler.postDelayed(this, 2000)
+                } else {
+                    pauseAllSessions()
+                    runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, start, 0) }
+                    syncMaster()
+                    toast("😴 Bonne nuit")
+                }
+            }
+        }
+        toast("😴 Fondu de sortie…")
+        handler.post(fade)
+    }
+
+    private fun pauseAllSessions() {
+        if (!listenerEnabled()) return
+        runCatching {
+            val msm = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
+            msm.getActiveSessions(ComponentName(this, MediaNotifListener::class.java)).forEach {
+                runCatching { it.transportControls.pause() }
             }
         }
     }
